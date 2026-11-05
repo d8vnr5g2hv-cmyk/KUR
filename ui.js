@@ -38,12 +38,17 @@ const UI = (() => {
   function refresh() { hud(); if (cur === 'pack') pack(); if (cur === 'book') book(); if (cur === 'home') home(); }
 
   // ---------- タイトル（画像の先読み） ----------
-  async function title() {
-    const list = [...IMG_PRELOAD, ...Object.keys(CHARS).map(k => 't_' + k)];
+  // タップはすぐ受け付ける。先読みは裏で続け、最長2.5秒で「TAP TO START」を出す
+  function title() {
+    let started = false;
+    const start = () => { if (started) return; started = true; try { Sfx.play('ok'); } catch (e) {} go('home'); };
+    $('title').addEventListener('click', start);
+    $('title').addEventListener('touchend', e => { e.preventDefault(); start(); });
+    const show = () => $('tStart').classList.add('on');
+    setTimeout(show, 2500);
+    const list = IMG_PRELOAD.slice(0, 4);
     let done = 0;
-    await Promise.all(list.map(n => new Promise(r => { const i = new Image(); i.onload = i.onerror = () => { done++; $('tBar').style.transform = `scaleX(${done / list.length})`; r(); }; i.src = n + '.webp'; })));
-    $('tStart').classList.add('on');
-    $('title').onclick = () => { Sfx.play('ok'); go('home'); };
+    list.forEach(n => { const i = new Image(); i.onload = i.onerror = () => { done++; $('tBar').style.transform = `scaleX(${done / list.length})`; if (done === list.length) show(); }; i.src = n + '.webp'; });
   }
 
   // ---------- ホーム ----------
@@ -200,6 +205,12 @@ const UI = (() => {
 
   // ---------- つなぎこみ ----------
   function init() {
+    title();   // 何より先にスタートできるようにする
+    const safe = (fn) => { try { fn(); } catch (e) { console.warn(e); } };
+    safe(() => Battle.init());
+    safe(() => bind());
+  }
+  function bind() {
     $('nav').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) { Sfx.play('tap'); go(b.dataset.go); } });
     $('hChar').onclick = () => { talk(); Sfx.play('tap'); const el = $('hChar'); el.classList.remove('poke'); void el.offsetWidth; el.classList.add('poke'); };
     $('hGo').onclick = () => { Sfx.play('ok'); go('stage'); };
@@ -220,8 +231,6 @@ const UI = (() => {
     $('bkGrid').addEventListener('click', e => { const b = e.target.closest('[data-card]'); if (b) cardDetail(b.dataset.card); });
     // 押したときの音と振動
     document.addEventListener('pointerdown', e => { const b = e.target.closest('button,.dkc,.bkc'); if (b && !b.disabled) { b.classList.add('prs'); setTimeout(() => b.classList.remove('prs'), 140); } }, {passive:true});
-    Battle.init();
-    title();
   }
   return { init, go, refresh, result, hud, detail:cardDetail };
 })();

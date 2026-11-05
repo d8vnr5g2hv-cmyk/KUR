@@ -1,6 +1,10 @@
 // HALO LINK — カードの見た目（どの画面でも同じ部品を使う）と、共通の演出
 'use strict';
-const $ = id => document.getElementById(id);
+const $ = id => document.getElementById(id) || DUMMY;
+// 見つからない要素に触ってもエラーで止まらないように（古いファイルが残っていた場合の保険）
+const DUMMY = new Proxy(document.createElement('div'), { get(t, k) { const v = t[k]; return typeof v === 'function' ? v.bind(t) : v; }, set(t, k, v) { try { t[k] = v; } catch (e) {} return true; } });
+// エラーが出たら画面に出す（原因を見つけやすくする）
+addEventListener('error', e => { try { const t = document.getElementById('toast'); if (t) { t.textContent = 'エラー：' + (e.message || '') + '（' + String(e.filename || '').split('/').pop() + ' ' + (e.lineno || '') + '行）'; t.classList.remove('on'); void t.offsetWidth; t.classList.add('on'); } } catch (_) {} });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const h = html => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
 
