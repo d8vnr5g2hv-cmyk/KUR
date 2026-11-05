@@ -96,7 +96,7 @@ const UI = (() => {
     const s = Save.d;
     Pack.carousel($('pkView'), cover => { if (Pack.canOpen()) Pack.open(cover).then(hud); else { toast('開けられるパックがありません'); Sfx.play('back'); } });
     $('pkOpen').disabled = !Pack.canOpen();
-    $('pkOpen').querySelector('small').textContent = s.free.n > 0 ? `無料 ${s.free.n}/${PACK.freeMax}` : s.ticket > 0 ? `パック券 ${s.ticket}枚` : '開けられるパックがありません';
+    $('pkOpen').querySelector('small').textContent = PACK.unlimited ? 'テスト中：無制限' : s.free.n > 0 ? `無料 ${s.free.n}/${PACK.freeMax}` : s.ticket > 0 ? `パック券 ${s.ticket}枚` : '開けられるパックがありません';
     clearInterval(packTimer);
     const tick = () => {
       const w = Save.freeTick();

@@ -13,10 +13,10 @@ const Pack = (() => {
     }
     return out;
   }
-  function canOpen() { Save.freeTick(); const s = Save.d; return s.free.n > 0 || s.ticket > 0; }
+  function canOpen() { if (PACK.unlimited) return true; Save.freeTick(); const s = Save.d; return s.free.n > 0 || s.ticket > 0; }
   async function open(cover = COVERS[0]) {
     const s = Save.d; Save.freeTick();
-    if (s.free.n > 0) s.free.n--; else if (s.ticket > 0) s.ticket--; else { toast('開けられるパックがありません'); return; }
+    if (PACK.unlimited) {} else if (s.free.n > 0) s.free.n--; else if (s.ticket > 0) s.ticket--; else { toast('開けられるパックがありません'); return; }
     const ids = roll();
     const res = ids.map(id => { const isNew = !s.owned[id]; s.owned[id] = (s.owned[id] || 0) + 1; return {id, isNew}; });
     s.pt += PACK.ptPerPack; Save.put();

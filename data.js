@@ -191,6 +191,7 @@ const STAGES = [
 const PACK = {
   name:'HALO LINK　BOOSTER 01',
   slot45:[{1:0, 2:80, 3:16, 4:4}, {1:0, 2:58, 3:32, 4:10}],
+  unlimited:true,   // テスト用：パックを無制限に開けられる（本番にするときは false）
   freeMax:2, freeHours:12,
   ptPerPack:5, cost:{1:10, 2:30, 3:120, 4:300},   // ポイント交換に必要なポイント
 };
