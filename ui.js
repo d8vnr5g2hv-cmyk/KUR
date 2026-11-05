@@ -10,14 +10,15 @@ const UI = (() => {
     await Wipe.play(() => {
       document.querySelectorAll('.scr').forEach(s => s.classList.toggle('on', s.id === id));
       cur = id; document.body.dataset.scr = id;
-      $('nav').classList.toggle('hide', id === 'battle' || id === 'title');
+      $('nav').classList.toggle('hide', id === 'battle' || id === 'title' || id === 'map');
       document.querySelectorAll('#nav [data-go]').forEach(b => b.classList.toggle('on', b.dataset.go === id));
       if (id === 'home') home();
       if (id === 'stage') stage();
       if (id === 'pack') pack();
       if (id === 'deck') deck();
       if (id === 'book') book();
-      if (id === 'battle') Battle.start(arg);
+      if (id === 'map') Run.paintMap();
+      if (id === 'battle' && typeof arg === 'function') arg();
       hud();
       enter(document.getElementById(id));
     });
@@ -64,8 +65,7 @@ const UI = (() => {
     $('hAff').innerHTML = `<span>好感度</span><b>Lv${a.lv}</b><i><i style="transform:scaleX(${a.lv >= 10 ? 1 : a.exp / Save.affNeed(a.lv)})"></i></i>`;
     $('hPack').classList.toggle('on', s.free.n + s.ticket > 0);
     $('hPackN').textContent = s.free.n + s.ticket;
-    const next = STAGES.find(st => !s.cleared[st.id]) || STAGES[STAGES.length - 1];
-    $('hNext').textContent = next.id + '　' + next.n;
+    $('hNext').textContent = s.run ? `挑戦の続き（${DIFF[s.run.diff].n}・${s.run.layer + 2}層目）` : '作戦を選んで出撃';
     setTimeout(talk, 700);
   }
   function talk() {
@@ -75,19 +75,24 @@ const UI = (() => {
     clearTimeout(talk.t); talk.t = setTimeout(() => t.classList.remove('on'), 4200);
   }
 
-  // ---------- ステージ ----------
+  // ---------- 作戦（難易度・編成・特性・掃討） ----------
+  let diffSel = 0;
   function stage() {
     const s = Save.d;
-    $('stList').innerHTML = STAGES.map((st, i) => {
-      const open = i === 0 || s.cleared[STAGES[i - 1].id], n = s.cleared[st.id] || 0;
-      const faces = [...new Set(st.waves.flat())].slice(0, 3).map(k => `<img src="${ENEMIES[k].img}.webp" alt="" style="${ENEMIES[k].hue ? `filter:hue-rotate(${ENEMIES[k].hue}deg)` : ''}">`).join('');
-      return `<button class="st in ${open ? '' : 'lock'} ${st.boss ? 'boss' : ''}" data-st="${i}" ${open ? '' : 'disabled'}>
-        <div class="st-no">${st.id}</div><div class="st-body"><b>${st.n}</b>
-        <small>${st.waves.length}WAVE ・ ${n ? `クリア${n}回` : `初回報酬：パック券×${st.first.ticket}`}</small></div>
-        <div class="st-faces">${faces}</div>${n ? '<span class="st-clr">CLEAR</span>' : ''}${open ? '' : '<span class="st-lock">LOCK</span>'}</button>`;
+    $('stDiff').innerHTML = DIFF.map((d, i) => {
+      const open = i === 0 || s.cleared['run_' + DIFF[i - 1].id], best = s.bestRank && s.bestRank[d.id];
+      return `<button class="df ${i === diffSel ? 'on' : ''} ${open ? '' : 'lock'}" data-df="${i}" ${open ? '' : 'disabled'}><b>${d.n}</b><small>敵HP×${d.hp} ・ 攻撃×${d.atk}</small>${best ? `<em class="rk r${best}">${best}</em>` : ''}${open ? '' : '<span>LOCK</span>'}</button>`;
     }).join('');
-    const pc = CHARS[s.partner];
-    $('stParty').innerHTML = `<img src="ic_${s.partner}.webp" alt=""><div><small>PARTNER</small><b>${pc.n}</b><p>${pc.passive.txt}</p></div><span class="st-deck">DECK ${s.deck.length}/${DECK_SIZE}</span>`;
+    const d = DIFF[diffSel];
+    $('stInfo').innerHTML = `<p>マップを進み、最後のボスを倒すとクリア。ボスはシールドを割らないと、カウント${d.count}で全員に大ダメージ。</p>
+      <div class="st-rw"><span>クリア報酬</span><b>記章 ${d.badge}〜${d.badge * 2}</b><b>パック券 ${d.ticket}〜${d.ticket + 1}</b></div>`;
+    const team = s.team.map(id => `<div class="tm"><img src="s_${id}_aim.webp" alt=""><span style="--c:${TAG[PARTY_DEF[id].tag].c}">${TAG[PARTY_DEF[id].tag].n}</span><b>${CHARS[id].n}</b></div>`).join('');
+    $('stParty').innerHTML = `<div class="tms">${team}</div>`;
+    $('stGo').innerHTML = s.run ? `<b>続きから</b><small>${DIFF[s.run.diff].n}・${s.run.layer + 2}層目</small>` : `<b>出撃</b><small>${d.n}</small>`;
+    $('stSweep').disabled = !s.cleared['run_' + d.id];
+    $('stBadge').textContent = s.badge || 0;
+    s.passive = s.passive || {};
+    $('stPass').innerHTML = PASSIVES.map(p => `<button class="ps ${s.passive[p.id] ? 'on' : ''}" data-ps="${p.id}"><b>${p.n}</b><small>${p.txt}</small><em>${s.passive[p.id] ? '解放済み' : `記章 ${p.cost}`}</em></button>`).join('');
   }
 
   // ---------- パック ----------
@@ -110,45 +115,30 @@ const UI = (() => {
   }
   const fmt = ms => { const t = Math.ceil(ms / 1000), hh = Math.floor(t / 3600), mm = Math.floor(t % 3600 / 60), ss = t % 60; return `${hh}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`; };
 
-  // ---------- デッキ ----------
-  let deckTab = 'all';
+  // ---------- 編成（3人を選ぶ。左が前列） ----------
   function deck() {
+    const s = Save.d, chars = Object.keys(PARTY_DEF).filter(ch => CARDS.some(c => c.ch === ch && s.owned[c.id]));
+    $('dkTeam').innerHTML = [0, 1, 2].map(i => { const id = s.team[i]; return id ? `<button class="tslot ${i === 0 ? 'f' : ''}" data-ts="${i}"><img src="s_${id}_aim.webp" alt=""><b>${CHARS[id].n}</b><span style="--c:${TAG[PARTY_DEF[id].tag].c}">${TAG[PARTY_DEF[id].tag].n}</span><em>${i === 0 ? '前列' : '後列'}</em></button>` : `<button class="tslot empty" data-ts="${i}">＋</button>`; }).join('');
+    // シナジー
+    const syn = {}; s.team.forEach(id => { const t = PARTY_DEF[id].tag; syn[t] = (syn[t] || 0) + 1; });
+    $('dkSyn').innerHTML = Object.entries(syn).map(([t, n]) => `<span style="--c:${TAG[t].c}" class="${n >= 2 ? 'on' : ''}">${TAG[t].n}×${n}${n >= 2 ? `　ダメージ+${n >= 3 ? 30 : 15}%` : ''}</span>`).join('');
+    $('dkPool').innerHTML = chars.map(ch => {
+      const p = PARTY_DEF[ch], inT = s.team.includes(ch), a = Save.aff(ch);
+      return `<button class="pool ${inT ? 'in' : ''}" data-pool="${ch}"><img src="s_${ch}_aim.webp" alt=""><div><b>${CHARS[ch].n}</b><small><i style="background:${TAG[p.tag].c}"></i>${TAG[p.tag].n} ・ HP${p.hp} ・ 好感度Lv${a.lv}</small><p>EX：${CHARS[ch].ex.n}（${CHARS[ch].ex.txt}）</p></div>${inT ? '<em>編成中</em>' : ''}</button>`;
+    }).join('') + '<p class="empty">パックでカードを手に入れた子が、ここに並びます。</p>';
+    // 最初のデッキ
+    const cnt = {}; Run_starter(s.team).forEach(id => cnt[id] = (cnt[id] || 0) + 1);
+    $('dkStart').innerHTML = Object.keys(cnt).map(id => `<div class="dkc">${cardHTML(id, {n:cnt[id]})}</div>`).join('');
+  }
+  const Run_starter = ids => { const d = []; ids.forEach(ch => { CARDS.filter(c => c.ch === ch && c.rar === 1).forEach(c => d.push(c.id, c.id)); const r2 = CARDS.find(c => c.ch === ch && c.rar === 2); if (r2) d.push(r2.id); }); return d; };
+  let slotSel = null;
+  function poolTap(ch) {
     const s = Save.d;
-    // パートナー
-    const chars = Save.ownedChars();
-    $('dkPartner').innerHTML = chars.map(ch => `<button class="pp ${ch === s.partner ? 'on' : ''}" data-pp="${ch}" style="--c:${ATTR[CHARS[ch].attr].c}"><img src="ic_${ch}.webp" alt=""><span>Lv${Save.aff(ch).lv}</span></button>`).join('');
-    const pc = CHARS[s.partner];
-    $('dkPinfo').innerHTML = `<b>${pc.n}</b><p><em>常時</em>${pc.passive.txt}</p><p><em>EX</em>${pc.ex.n}：${pc.ex.txt}</p>`;
-    // デッキの中身
-    const cnt = {}; s.deck.forEach(id => cnt[id] = (cnt[id] || 0) + 1);
-    const ids = Object.keys(cnt).sort((a, b) => cardById(a).c - cardById(b).c || a.localeCompare(b));
-    $('dkCount').innerHTML = `<b class="${s.deck.length === DECK_SIZE ? 'ok' : 'ng'}">${s.deck.length}</b>/${DECK_SIZE}`;
-    $('dkList').innerHTML = ids.map(id => { const c = cardById(id); return `<button class="dr r${c.rar}" data-rm="${id}" style="--tc:${TYPE[c.t].c}">
-      <i class="dr-art" style="background-image:url(${c.art}.webp)"></i><span class="dr-c">${c.c}</span><span class="dr-n">${c.n}</span><span class="dr-x">×${cnt[id]}</span><span class="dr-m">−</span></button>`; }).join('') || '<p class="empty">下のカードをタップして入れてください</p>';
-    // 持っているカード
-    const tabs = ['all', 'yohei', ...Object.keys(CHARS), 'guest'];
-    $('dkTabs').innerHTML = tabs.map(t => `<button class="${t === deckTab ? 'on' : ''}" data-tab="${t}">${t === 'all' ? 'すべて' : chName(t)}</button>`).join('');
-    const own = CARDS.filter(c => s.owned[c.id] && (deckTab === 'all' || c.ch === deckTab));
-    $('dkOwn').innerHTML = own.map(c => {
-      const inD = cnt[c.id] || 0, max = Math.min(s.owned[c.id], copyMax(c));
-      return `<div class="dkc ${inD >= max ? 'full' : ''}" data-add="${c.id}">${cardHTML(c.id, {n:s.owned[c.id]})}<span class="dkc-in">${inD ? `デッキ ${inD}` : ''}</span></div>`;
-    }).join('');
-  }
-  function deckAdd(id) {
-    const s = Save.d, c = cardById(id), inD = s.deck.filter(x => x === id).length, max = Math.min(s.owned[id] || 0, copyMax(c));
-    if (s.deck.length >= DECK_SIZE) { toast('デッキは20枚までです'); Sfx.play('back'); return; }
-    if (inD >= max) { toast(inD >= (s.owned[id] || 0) ? '持っている枚数を超えています' : c.rar === 4 ? '♛カードは1枚までです' : `このカードは${copyMax(c)}枚までです`); Sfx.play('back'); return; }
-    s.deck.push(id); Save.put(); Sfx.play('ok'); deck();
-  }
-  function deckRm(id) { const s = Save.d, i = s.deck.lastIndexOf(id); if (i >= 0) s.deck.splice(i, 1); Save.put(); Sfx.play('back'); deck(); }
-  // おまかせ：パートナーのカードを優先して、強い順に20枚
-  function deckAuto() {
-    const s = Save.d, pool = [];
-    CARDS.forEach(c => { const n = Math.min(s.owned[c.id] || 0, copyMax(c)); for (let i = 0; i < n; i++) pool.push(c); });
-    pool.sort((a, b) => (b.ch === s.partner) - (a.ch === s.partner) || b.rar - a.rar);
-    const pick = pool.slice(0, DECK_SIZE);
-    // 守りのカードが少なすぎないように整える
-    s.deck = pick.map(c => c.id); Save.put(); Sfx.play('ok'); deck(); toast('おまかせで組みました');
+    if (s.run) { toast('挑戦中は編成を変えられません（精算すると変えられます）'); return; }
+    const at = s.team.indexOf(ch);
+    if (at >= 0) { if (slotSel != null && slotSel !== at) { [s.team[slotSel], s.team[at]] = [s.team[at], s.team[slotSel]]; slotSel = null; Save.put(); deck(); } return; }
+    const k = slotSel != null ? slotSel : s.team.length < 3 ? s.team.length : 2;
+    s.team[k] = ch; slotSel = null; s.partner = s.team[0]; Save.put(); Sfx.play('ok'); deck();
   }
 
   // ---------- 図鑑 ----------
@@ -203,11 +193,23 @@ const UI = (() => {
     o.querySelector('[data-h]').onclick = () => { o.classList.remove('on'); go('stage'); };
   }
 
+  function runResult(r) {
+    const o = $('over');
+    o.innerHTML = `<div class="ov ${r.win ? 'win' : 'lose'}"><h2>${r.win ? 'CLEAR' : r.settled ? 'SETTLE' : 'FAILED'}</h2>
+      ${r.win ? `<div class="rk-big r${r.rank}">${r.rank}<small>RANK</small></div>` : `<p>${r.settled ? 'ここまでの報酬を受け取りました' : '全員倒れてしまった（記章は半分）'}</p>`}
+      <div class="rw"><span>記章</span><b>+${r.badge}</b></div>${r.ticket ? `<div class="rw"><span>パック券</span><b>+${r.ticket}</b></div>` : ''}
+      <div class="rw-team">${r.ups.map(u => `<div><img src="ic_${u.id}.webp" alt=""><small>好感度 Lv${Save.aff(u.id).lv}</small>${u.up ? '<em>UP!</em>' : ''}</div>`).join('')}</div>
+      <div class="ov-btns"><button class="btn main" data-h>作戦へ</button></div></div>`;
+    o.classList.add('on'); Sfx.play(r.win ? 'win' : 'lose');
+    o.querySelector('[data-h]').onclick = () => { o.classList.remove('on'); go('stage'); };
+  }
+
   // ---------- つなぎこみ ----------
   function init() {
     title();   // 何より先にスタートできるようにする
     const safe = (fn) => { try { fn(); } catch (e) { console.warn(e); } };
     safe(() => Battle.init());
+    safe(() => Run.init());
     safe(() => bind());
   }
   function bind() {
@@ -215,23 +217,19 @@ const UI = (() => {
     $('hChar').onclick = () => { talk(); Sfx.play('tap'); const el = $('hChar'); el.classList.remove('poke'); void el.offsetWidth; el.classList.add('poke'); };
     $('hGo').onclick = () => { Sfx.play('ok'); go('stage'); };
     $('hPack').onclick = () => { Sfx.play('ok'); go('pack'); };
-    $('stList').addEventListener('click', e => {
-      const b = e.target.closest('[data-st]'); if (!b) return;
-      if (Save.d.deck.length !== DECK_SIZE) { toast(`デッキを${DECK_SIZE}枚にしてください`); go('deck'); return; }
-      Sfx.play('ok'); go('battle', STAGES[+b.dataset.st]);
-    });
+    $('stDiff').addEventListener('click', e => { const b = e.target.closest('[data-df]'); if (!b) return; diffSel = +b.dataset.df; Sfx.play('tap'); stage(); });
+    $('stGo').onclick = () => { const s = Save.d; if (s.run) { Sfx.play('ok'); go('map'); return; } if (s.team.length < 3) { toast('3人を編成してください'); go('deck'); return; } Run.begin(diffSel); };
     $('stEdit').onclick = () => go('deck');
+    $('stSweep').onclick = () => { Run.sweep(diffSel); stage(); };
+    $('stPass').addEventListener('click', e => { const b = e.target.closest('[data-ps]'); if (!b) return; const s = Save.d, p = PASSIVES.find(x => x.id === b.dataset.ps); if (s.passive[p.id]) return; if ((s.badge || 0) < p.cost) { toast('記章が足りません'); Sfx.play('back'); return; } s.badge -= p.cost; s.passive[p.id] = 1; Save.put(); Sfx.play('rare', 3); toast(`${p.n} を解放しました`); stage(); });
     $('pkOpen').onclick = () => { const c = $('pkView').querySelector('.pc-item.cur'); if (Pack.canOpen()) Pack.open(Pack.COVERS[c ? +c.dataset.i : 0]).then(hud); };
-    $('dkPartner').addEventListener('click', e => { const b = e.target.closest('[data-pp]'); if (!b) return; Save.d.partner = b.dataset.pp; Save.put(); Sfx.play('ok'); deck(); });
-    $('dkList').addEventListener('click', e => { const b = e.target.closest('[data-rm]'); if (b) deckRm(b.dataset.rm); });
-    $('dkOwn').addEventListener('click', e => { const b = e.target.closest('[data-add]'); if (b) deckAdd(b.dataset.add); });
-    $('dkTabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { deckTab = b.dataset.tab; deck(); } });
-    $('dkAuto').onclick = deckAuto;
+    $('dkTeam').addEventListener('click', e => { const b = e.target.closest('[data-ts]'); if (!b) return; slotSel = +b.dataset.ts; Sfx.play('tap'); $('dkTeam').querySelectorAll('.tslot').forEach(x => x.classList.toggle('pick', +x.dataset.ts === slotSel)); toast(slotSel === 0 ? '前列に入れる子を選んでください' : '後列に入れる子を選んでください'); });
+    $('dkPool').addEventListener('click', e => { const b = e.target.closest('[data-pool]'); if (b) poolTap(b.dataset.pool); });
     $('bkTabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { bookTab = b.dataset.tab; book(); } });
     $('bkGrid').addEventListener('click', e => { const b = e.target.closest('[data-card]'); if (b) cardDetail(b.dataset.card); });
     // 押したときの音と振動
     document.addEventListener('pointerdown', e => { const b = e.target.closest('button,.dkc,.bkc'); if (b && !b.disabled) { b.classList.add('prs'); setTimeout(() => b.classList.remove('prs'), 140); } }, {passive:true});
   }
-  return { init, go, refresh, result, hud, detail:cardDetail };
+  return { init, go, refresh, result, hud, detail:cardDetail, runResult };
 })();
 UI.init();

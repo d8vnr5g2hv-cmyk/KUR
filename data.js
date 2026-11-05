@@ -199,3 +199,61 @@ const DECK_SIZE = 20;
 // デッキに入れられる枚数：耀平の基本カード（◆）は4枚、♛は1枚、ほかは2枚
 const copyMax = c => c.rar === 4 ? 1 : (c.ch === 'yohei' && c.rar === 1) ? 4 : 2;
 const HP_BASE = 60;
+
+// ===================== v0.3：3人パーティ・倍率・難易度・マップ =====================
+// タグ（シナジー）：同じタグが2人で×1.15、3人で×1.3（その子たちのカードに乗る）
+const TAG = { guard:{n:'守護', c:'#5fb4ff'}, shoot:{n:'射撃', c:'#ff7a6a'}, pray:{n:'祈り', c:'#ffd76a'} };
+// 盤面に立つキャラ（デフォルメ）：s_{id}_aim / down / joy。HPはキャラごと
+const PARTY_DEF = {
+  noa:    {tag:'pray',  hp:42},
+  hoshino:{tag:'guard', hp:62},
+  mika:   {tag:'shoot', hp:46},
+  yuuka:  {tag:'guard', hp:54},
+  kisaki: {tag:'pray',  hp:44},
+  hina:   {tag:'shoot', hp:52},
+  miyako: {tag:'shoot', hp:46},
+  mari:   {tag:'pray',  hp:40},
+};
+const EX_GAUGE = 4;   // EXに必要なゲージ（その子のカードを使うと+1）
+
+// 難易度：敵のHP・攻撃の倍率と、ボスの仕掛けの速さ
+const DIFF = [
+  {id:'n',  n:'NORMAL',    hp:1,   atk:1,   count:4, badge:10, ticket:1},
+  {id:'h',  n:'HARD',      hp:1.5, atk:1.3, count:3, badge:20, ticket:2},
+  {id:'vh', n:'VERY HARD', hp:2.2, atk:1.6, count:2, badge:40, ticket:3},
+];
+
+// 敵の追加（行動の種類：atk 前列 / atkBack 後列 / atkAll 全員 / shield シールド回復 / block / str / weak / vuln）
+Object.assign(ENEMIES, {
+  sniper: {n:'狙撃ドローン', img:'en_drone', attr:'water', hp:20, pat:[{atkBack:[6, 1]}, {atk:[4, 1]}], hue:180},
+  guard:  {n:'盾持ち機兵',   img:'en_robot', attr:'light', hp:40, shield:20, pat:[{block:8, atk:[6, 1]}, {shield:12}, {atk:[10, 1]}]},
+  bomber: {n:'爆撃ゴーレム', img:'en_04',    attr:'wood',  hp:48, pat:[{atkAll:[5, 1]}, {block:10}, {atk:[12, 1]}]},
+  // ボス：シールドを割らないと、カウントが0で全員に大ダメージ
+  crystalB:{n:'結晶竜ヘイロン', img:'boss_01', attr:'dark', hp:170, shield:40, boss:true, count:{dmg:22},
+            pat:[{atk:[12, 1]}, {atkBack:[9, 1]}, {shield:30, str:2}, {atk:[6, 3]}, {atkAll:[8, 1]}]},
+});
+
+// マップの戦闘の組み合わせ（層が深いほど強い）
+const ENC = {
+  easy:  [['slime', 'slimeR'], ['fox'], ['drone', 'drone'], ['slimeG', 'cat']],
+  mid:   [['fox', 'sniper'], ['cat', 'owl'], ['guard', 'slime'], ['drake']],
+  elite: [['golem'], ['guard', 'sniper'], ['bomber', 'cat'], ['heavy']],
+  boss:  [['crystalB']],
+};
+
+// 特性（永続のパッシブ）：記章で解放
+const PASSIVES = [
+  {id:'p_block', n:'前列の構え',   cost:10, txt:'戦闘開始時、ガード6'},
+  {id:'p_heal',  n:'応急処置',     cost:15, txt:'戦闘に勝つたび、全員のHP+4'},
+  {id:'p_ex',    n:'EX準備',       cost:20, txt:'戦闘開始時、全員のEXゲージ+1'},
+  {id:'p_chain', n:'連携強化',     cost:25, txt:'連携の倍率が1枚ごと+0.15（通常+0.1）'},
+  {id:'p_cost',  n:'先手必勝',     cost:30, txt:'各戦闘の1ターン目、コスト+1'},
+];
+
+// 事件マス
+const EVENTS = [
+  {id:'snack', n:'差し入れ',     txt:'誰かが差し入れを置いていった。', opts:[{t:'食べる（全員HP+10）', fx:'healAll10'}, {t:'持って帰る（記章+3）', fx:'badge3'}]},
+  {id:'train', n:'特訓',         txt:'少し時間がある。何をしよう？',   opts:[{t:'走り込み（全員の最大HP+4）', fx:'maxhp4'}, {t:'作戦会議（カードを1枚得る）', fx:'card'}]},
+  {id:'box',   n:'怪しい箱',     txt:'封をされた箱が落ちている。',     opts:[{t:'開ける（★カード、または前列が10ダメージ）', fx:'gamble'}, {t:'放っておく', fx:'none'}]},
+  {id:'shop',  n:'自販機',       txt:'動いている自販機を見つけた。',   opts:[{t:'記章5でカード削除', fx:'remove5'}, {t:'通り過ぎる', fx:'none'}]},
+];

@@ -3,10 +3,10 @@
 const Save = (() => {
   const KEY = 'halolink-cards-v1';
   const STARTER = ['y_atk', 'y_atk', 'y_atk', 'y_def', 'y_def', 'y_def', 'y_heal', 'y_heal',
-    'noa_1', 'noa_1', 'noa_2', 'noa_2', 'yuuka_1', 'yuuka_2', 'hoshino_1', 'hoshino_2', 'kisaki_1', 'kisaki_2', 'y_atk', 'y_def'];
+    'noa_1', 'noa_1', 'noa_2', 'noa_2', 'yuuka_1', 'yuuka_2', 'hoshino_1', 'hoshino_2', 'kisaki_1', 'kisaki_2', 'y_atk', 'y_def', 'mika_1', 'mika_2'];
   const DEF = () => {
     const owned = {}; STARTER.forEach(id => owned[id] = (owned[id] || 0) + 1);
-    return { owned, deck:STARTER.slice(), partner:'noa', aff:{}, ticket:3, free:{n:PACK.freeMax, at:Date.now()}, pt:0, cleared:{}, seen:{} };
+    return { owned, deck:STARTER.slice(0, 20), team:['hoshino', 'noa', 'mika'], badge:0, passive:{}, run:null, partner:'hoshino', aff:{}, ticket:3, free:{n:PACK.freeMax, at:Date.now()}, pt:0, cleared:{}, seen:{} };
   };
   let d = DEF();
   try { const s = JSON.parse(localStorage.getItem(KEY)); if (s) d = Object.assign(DEF(), s); } catch (e) {}

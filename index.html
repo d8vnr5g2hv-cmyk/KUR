@@ -9,7 +9,7 @@
 <title>HALO LINK</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Barlow+Condensed:ital,wght@0,500;0,700;1,700;1,800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="game.css?v=0.2.2">
+<link rel="stylesheet" href="game.css?v=0.3">
 </head>
 <body data-scr="title">
 
@@ -36,13 +36,28 @@
   <button class="h-go in" id="hGo"><small>NEXT STAGE</small><b id="hNext"></b><span>出撃</span></button>
 </section>
 
-<!-- ===== ステージ ===== -->
+<!-- ===== 作戦 ===== -->
 <section class="scr" id="stage">
-  <div class="sc-bg" style="background-image:url(bg_battle.webp)"></div>
-  <header class="hd in"><div><em>STAGE</em><b>回廊区画</b></div><div class="res"><span>券</span><b data-hud="ticket">0</b></div></header>
-  <div class="st-party in" id="stParty"></div>
-  <button class="st-edit in" id="stEdit">デッキとパートナーを編集</button>
-  <div class="st-list" id="stList"></div>
+  <div class="sc-bg" style="background-image:url(bg_sand.webp)"></div>
+  <header class="hd in"><div><em>OPERATION</em><b>作戦</b></div><div class="res"><span>記章</span><b id="stBadge">0</b><span>券</span><b data-hud="ticket">0</b></div></header>
+  <div class="st-scroll">
+    <div class="st-diff in" id="stDiff"></div>
+    <div class="st-info in" id="stInfo"></div>
+    <p class="lab in">TEAM<button class="mini" id="stEdit">編成を変える</button></p>
+    <div class="st-party in" id="stParty"></div>
+    <div class="st-act in"><button class="btn main big" id="stGo"></button><button class="btn sub" id="stSweep">掃討</button></div>
+    <p class="lab in">PASSIVE<small>記章で永続の特性を解放</small></p>
+    <div class="st-pass in" id="stPass"></div>
+  </div>
+</section>
+
+<!-- ===== マップ ===== -->
+<section class="scr" id="map">
+  <div class="sc-bg" style="background-image:url(bg_sand.webp)"></div>
+  <header class="hd"><div><em>MAP</em><b id="mDiff"></b></div><div class="res"><span>記章</span><b id="mBadge">0</b></div></header>
+  <div class="m-party" id="mParty"></div>
+  <div class="m-map" id="mMap"></div>
+  <div class="m-bar"><button class="btn sub" id="mDeckBtn">デッキ <b id="mDeck">0</b>枚</button><button class="btn sub" id="mSettle">精算して終わる</button></div>
 </section>
 
 <!-- ===== パック ===== -->
@@ -57,19 +72,18 @@
   </div>
 </section>
 
-<!-- ===== デッキ ===== -->
+<!-- ===== 編成 ===== -->
 <section class="scr" id="deck">
   <div class="sc-bg dark" style="background-image:url(bg_home.webp)"></div>
-  <header class="hd in"><div><em>DECK</em><b>デッキ編成</b></div><div class="dk-count" id="dkCount"></div></header>
+  <header class="hd in"><div><em>TEAM</em><b>編成</b></div></header>
   <div class="dk-scroll">
-    <p class="lab in">PARTNER<small>EXスキルと常時効果。好感度はパートナーに入ります</small></p>
-    <div class="dk-partner in" id="dkPartner"></div>
-    <div class="dk-pinfo in" id="dkPinfo"></div>
-    <p class="lab in">DECK<button class="mini" id="dkAuto">おまかせ</button></p>
-    <div class="dk-list in" id="dkList"></div>
-    <p class="lab in">CARDS<small>タップでデッキに入れる（同じカードは2枚まで。耀平の基本カードは4枚、♛は1枚）</small></p>
-    <div class="tabs in" id="dkTabs"></div>
-    <div class="dk-own" id="dkOwn"></div>
+    <p class="lab in">TEAM<small>枠をタップ → 下から入れる子を選ぶ。左が前列（攻撃を受ける）</small></p>
+    <div class="dk-team in" id="dkTeam"></div>
+    <div class="dk-syn in" id="dkSyn"></div>
+    <p class="lab in">MEMBERS</p>
+    <div class="dk-pool in" id="dkPool"></div>
+    <p class="lab in">START DECK<small>この3人のカードで始まり、戦闘の報酬で増えていく</small></p>
+    <div class="dk-own" id="dkStart"></div>
   </div>
 </section>
 
@@ -91,10 +105,11 @@
       <span class="b-wave">WAVE <b id="bWave">1/1</b></span>
     </div>
     <div id="bEnemies"></div>
+    <div class="b-syn" id="bSyn"></div>
+    <div class="b-party" id="bParty"></div>
     <div class="b-me">
       <div class="b-block" id="bBlock"><svg viewBox="0 0 24 24"><path d="M12 2l9 3v6c0 6-4 10-9 11C7 21 3 17 3 11V5z"/></svg><b>0</b></div>
-      <button class="b-ex" id="bEx"><img id="bExIc" alt=""><i class="b-ring" id="bGauge"></i><em>EX</em></button>
-      <div class="b-hp" id="bHp"><i id="bHpBar"></i><span>耀平</span><b id="bHpNum"></b></div>
+      <div class="b-chain" id="bChain"></div>
       <div class="b-st" id="bSt"></div>
     </div>
     <div id="bBanner"></div>
@@ -114,6 +129,7 @@
 <!-- 重ねて出すもの -->
 <div id="cut"><div class="c-bg"></div><i class="c-s1"></i><i class="c-s2"></i><div class="c-art"><img alt=""></div>
   <div class="c-txt"><span class="cn"></span><b class="cs"></b><p class="cd"></p></div></div>
+<div id="rv"></div>
 <div id="po"></div>
 <div id="imm"></div>
 <div id="detail"></div>
@@ -123,18 +139,19 @@
 
 <nav id="nav" class="hide">
   <button data-go="home"><i class="ic i-home"></i>ホーム</button>
-  <button data-go="stage"><i class="ic i-stage"></i>バトル</button>
+  <button data-go="stage"><i class="ic i-stage"></i>作戦</button>
   <button data-go="pack"><i class="ic i-pack"></i>パック<em id="navBadge"></em></button>
-  <button data-go="deck"><i class="ic i-deck"></i>デッキ</button>
+  <button data-go="deck"><i class="ic i-deck"></i>編成</button>
   <button data-go="book"><i class="ic i-book"></i>図鑑</button>
 </nav>
 
-<script src="data.js?v=0.2.2"></script>
-<script src="save.js?v=0.2.2"></script>
-<script src="sfx.js?v=0.2.2"></script>
-<script src="card.js?v=0.2.2"></script>
-<script src="battle.js?v=0.2.2"></script>
-<script src="pack.js?v=0.2.2"></script>
-<script src="ui.js?v=0.2.2"></script>
+<script src="data.js?v=0.3"></script>
+<script src="save.js?v=0.3"></script>
+<script src="sfx.js?v=0.3"></script>
+<script src="card.js?v=0.3"></script>
+<script src="battle.js?v=0.3"></script>
+<script src="pack.js?v=0.3"></script>
+<script src="run.js?v=0.3"></script>
+<script src="ui.js?v=0.3"></script>
 </body>
 </html>
